@@ -1,0 +1,208 @@
+
+
+import os
+import re
+import pandas as pd
+
+page=[]
+data=""
+with open('Test.txt', "r") as f:
+    counter=0
+    for line in f :
+        if  not re.search('^\*',line):
+           if counter ==1:
+               if re.search("^DATE:", line.strip()):
+                   page.append(data)
+                   data=""
+                   data=data+line
+               else:
+                   data=data+line
+           else:
+               data=data+line
+               counter=counter+1
+    page.append(data)
+    
+    
+    
+    #print(page[120])
+    
+  
+def mergeLines(ListData):
+    #print(ListData)
+
+    temp_list=[]
+    temp_line=""
+    is_fist_skip=0
+    for line in ListData:
+        if re.search("^\d", line):
+            #print(temp_line)
+
+            if is_fist_skip >0:
+                temp_list.append(temp_line )
+                temp_line=line 
+            else:
+                 temp_line=line 
+                 is_fist_skip=1
+
+
+        else:
+            temp_line=temp_line+"\n"+line 
+            #print(temp_line)
+
+    temp_list.append(temp_line ) 
+    #print(temp_list)   
+    return temp_list
+
+
+
+columns=["COLUMN_NAME","START_POINT","END_POINT","REPORT_LINE"]  
+df_col=pd.read_excel("Offset.xlsx",usecols=columns)
+column_meta_data={}
+row_meta_data={}
+
+for index, row in df_col[df_col["REPORT_LINE"]>-1].iterrows(): 
+    #print (row["COLUMN_NAME"], row["START_POINT"],row["END_POINT"]) 
+    column_meta_data[row["COLUMN_NAME"]]={"START_POINT":row["START_POINT"],"END_POINT":row["END_POINT"],"REPORT_LINE":row["REPORT_LINE"]}
+
+for index, row in df_col[df_col["REPORT_LINE"]<=-1].iterrows(): 
+    #print (row["COLUMN_NAME"], row["START_POINT"],row["END_POINT"]) 
+    row_meta_data[row["COLUMN_NAME"]]={"START_POINT":row["START_POINT"],"END_POINT":row["END_POINT"],"REPORT_LINE":row["REPORT_LINE"]}
+      
+#for i in range(0,len(page)):
+dict = {}
+dict_index=0
+for i in range(0,len(page)):
+#for i in [0]:
+#for i in range(0,len(page)):
+    page_index=i
+              
+    
+    header_counter=0
+    for header_line in page[page_index].split('\n'):
+        if re.search("^------", header_line.strip()):
+            break
+        header_counter=header_counter+1
+    
+    
+    
+    pagedata=page[page_index].split('\n')
+    row_header=pagedata[4:header_counter-4]
+    #print(row_header)
+    
+    
+    
+    
+    column_header=pagedata[header_counter-3:header_counter-1] 
+    #print(column_header)
+    column_header= re.sub('\s+', ' ',' '.join(map(str,column_header)) ).strip(" ").split(" ")
+    
+    
+    
+    
+                
+    row_key_group_data={}
+    row_field_data=[]
+    row_key=""
+    linecounter=0;
+    for data in pagedata[header_counter-1:] :
+                 if data.strip() not in (''):
+                     if re.search("----", data.strip()):
+                        #print(data)
+                        if linecounter >0:
+                           row_key_group_data[row_key]=mergeLines(row_field_data)
+                           row_field_data.clear()
+                        row_key=data.strip(" -")
+    
+                     else:
+                       row_field_data.append(data) 
+                       #print(data)
+                 linecounter=linecounter+1
+    row_key_group_data[row_key]=mergeLines(row_field_data )
+    del row_key_group_data[""]
+    
+    
+    
+    
+        
+    #print("======================================================")
+    #print(row_header)
+    #print(column_header)
+    #print(row_key_group_data)  
+    
+   
+    for key in row_key_group_data:
+        #print(key)
+        for data in row_key_group_data[key]:
+#            lc_data_array=data.split()
+            #lc_data_array=data.split(" ",len(column_header))
+
+            lc_dict={"header":''.join(row_header),"sub_header":key}
+            
+            lc_df=df_col[df_col.REPORT_LINE<0]
+            for k,lcdf in lc_df.iterrows():
+                for line in row_header:
+                
+                    #lc_dict[lckey]=lc_data_array[column_header.index(lckey)]
+                    if re.search(lcdf["COLUMN_NAME"], line):
+                        #print(lcdf["COLUMN_NAME"]+'     ----dd'+line[lcdf["START_POINT"]:lcdf["END_POINT"]].strip())
+                        lc_dict[lcdf["COLUMN_NAME"]]=line[lcdf["START_POINT"]:lcdf["END_POINT"]].strip()
+                        if(lcdf["COLUMN_NAME"]=="CONTROL NO"):
+                            lc_dict[lcdf["COLUMN_NAME"]]=line[lcdf["START_POINT"]:lcdf["END_POINT"]].strip().replace("-",'')
+                  
+            
+            line_counter=0
+            tt="ED"
+            for line in data.split("\n"):
+                for lckey in df_col['COLUMN_NAME'][line_counter==df_col.REPORT_LINE]:
+                    lc_dict[lckey]=data.splitlines()[line_counter][column_meta_data[lckey]["START_POINT"]:column_meta_data[lckey]["END_POINT"]].strip()
+                    if lckey in column_header:
+                        if(lckey=='FLD/REJ/CMNT'): 
+                            
+                            data = data + "\n" * 5
+                            lc_dict[lckey]=data.splitlines()[1][column_meta_data[lckey]["START_POINT"]:column_meta_data[lckey]["END_POINT"]].strip()+ data.splitlines()[2][59:130].strip()+data.splitlines()[3][59:130].strip()+data.splitlines()[4][59:130].strip() 
+                        else:
+                             lc_dict[lckey]=data.splitlines()[line_counter][column_meta_data[lckey]["START_POINT"]:column_meta_data[lckey]["END_POINT"]].strip()
+                        
+                        if(lckey=='ACTION') and not(data.splitlines()[1][50:59].strip()[-4:]=="CTED" or data.splitlines()[1][50:59].strip()[-3:]=="DED" or data.splitlines()[1][50:59].strip()[-4:]=="FIED"):
+                            
+                            if(lckey=='ACTION') and data.splitlines()[1][43:51].strip().find("01")!=-1:
+                                lc_dict[lckey]=""
+                            else:
+                                
+                                data = data + "\n" * 3
+                                lc_dict[lckey]=data.splitlines()[1][43:74].strip() + data.splitlines()[2][59:130].strip()
+                        if(lckey=='CONTROL_NUM'):
+                            print("Test2_Tahir")
+                            lc_dict[lckey]=data.splitlines()[line_counter][column_meta_data[lckey]["START_POINT"]:column_meta_data[lckey]["END_POINT"]].strip().replace("-",'')
+#                        else:
+#                            #lc_dict[lckey]=lc_data_array[column_header.index(lckey)]
+#                            
+                    else:
+                        lc_dict[lckey]=""
+                line_counter = line_counter+1
+            dict[dict_index]=lc_dict
+            dict_index=dict_index+1
+#            break
+                
+df= pd.DataFrame.from_dict(dict,orient='index')
+#New_df = df[df['sub_header'].str.contains('REJECTED')]
+#
+#for x in df['sub_header'].str.contains('REJECTED'):
+#    df = df[df['OLD_VALUE'].replace("")]
+ 
+#df.to_csv('C:\\Python\Result_V1.1.1.3.csv')   
+    #print(i)
+    
+    
+    ###reading excel file using pandas lib
+# =============================================================================
+#    
+#     for col in column_header:
+#         if col not in  list(df_col["COLUMN_NAME"]):
+#             print(column_header)
+# =============================================================================
+            
+    
+
+
+
